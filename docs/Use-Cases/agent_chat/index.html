@@ -13,7 +13,7 @@
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.css" integrity="sha384-Um5gpz1odJg5Z4HAmzPtgZKdTBHZdw8S29IecapCSB31ligYPhHQZMIlWLYQGVoc" crossorigin="anonymous">
 <script src="/autogen/js/custom.js" async defer="defer"></script><link rel="stylesheet" href="/autogen/assets/css/styles.d8ef5d37.css">
-<script src="/autogen/assets/js/runtime~main.175e1580.js" defer="defer"></script>
+<script src="/autogen/assets/js/runtime~main.3412cbf9.js" defer="defer"></script>
 <script src="/autogen/assets/js/main.feb6fe66.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -71,7 +71,7 @@ One can also easily extend it by registering reply functions with the <a href="/
 </ol>
 <p>With the pluggable auto-reply function, one can choose to invoke conversations with other agents depending on the content of the current message and context. For example:</p>
 <ul>
-<li>Hierarchical chat like in <a href="https://github.com/microsoft/optiguide" target="_blank" rel="noopener noreferrer">OptiGuide</a>.</li>
+<li>Hierarchical chat like in <a href="https://github.com/autogen-ai/optiguide" target="_blank" rel="noopener noreferrer">OptiGuide</a>.</li>
 <li><a href="https://github.com/autogen-ai/autogen/blob/main/notebook/agentchat_groupchat.ipynb" target="_blank" rel="noopener noreferrer">Dynamic Group Chat</a> which is a special form of hierarchical chat. In the system, we register a reply function in the group chat manager, which broadcasts messages and decides who the next speaker will be in a group chat setting.</li>
 <li><a href="https://autogen-ai.github.io/autogen/docs/notebooks/agentchat_groupchat_finite_state_machine" target="_blank" rel="noopener noreferrer">Finite State Machine graphs to set speaker transition constraints</a> which is a special form of dynamic group chat. In this approach, a directed transition matrix is fed into group chat. Users can specify legal transitions or specify disallowed transitions.</li>
 <li>Nested chat like in <a href="https://github.com/autogen-ai/autogen/blob/main/notebook/agentchat_nested_chats_chess.ipynb" target="_blank" rel="noopener noreferrer">conversational chess</a>.</li>
