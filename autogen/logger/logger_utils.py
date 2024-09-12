@@ -15,6 +15,14 @@ def get_current_ts() -> str:
     return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
 
 
+def try_to_dict(obj: Union[int, float, str, bool, Dict[Any, Any], List[Any], Tuple[Any, ...], Any]) -> Any:
+    """Attempts to convert to dictionary, if it can't then it will return string representation"""
+    try:
+        return to_dict(obj)  # Attempt to serialize using to_dict
+    except Exception:
+        return repr(obj)  # Fallback to repr if serialization fails
+
+
 def to_dict(
     obj: Union[int, float, str, bool, Dict[Any, Any], List[Any], Tuple[Any, ...], Any],
     exclude: Tuple[str, ...] = (),

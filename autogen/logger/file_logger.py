@@ -17,7 +17,7 @@ from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
 from autogen.logger.base_logger import BaseLogger
-from autogen.logger.logger_utils import get_current_ts, to_dict
+from autogen.logger.logger_utils import get_current_ts, to_dict, try_to_dict
 
 from .base_logger import LLMConfig
 
@@ -138,7 +138,7 @@ class FileLogger(BaseLogger):
                     "session_id": self.session_id,
                     "current_time": get_current_ts(),
                     "agent_type": type(agent).__name__,
-                    "args": to_dict(init_args),
+                    "args": try_to_dict(init_args),
                     "thread_id": thread_id,
                 }
             )
@@ -203,7 +203,7 @@ class FileLogger(BaseLogger):
                 {
                     "wrapper_id": id(wrapper),
                     "session_id": self.session_id,
-                    "json_state": json.dumps(init_args),
+                    "json_state": try_to_dict(init_args),
                     "timestamp": get_current_ts(),
                     "thread_id": thread_id,
                 }
@@ -241,7 +241,7 @@ class FileLogger(BaseLogger):
                     "wrapper_id": id(wrapper),
                     "session_id": self.session_id,
                     "class": type(client).__name__,
-                    "json_state": json.dumps(init_args),
+                    "json_state": try_to_dict(init_args),
                     "timestamp": get_current_ts(),
                     "thread_id": thread_id,
                 }

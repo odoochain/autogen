@@ -18,7 +18,7 @@ from ..exception_utils import AgentNameConflict, NoEligibleSpeaker, UndefinedNex
 from ..formatting_utils import colored
 from ..graph_utils import check_graph_validity, invert_disallowed_to_allowed
 from ..io.base import IOStream
-from ..runtime_logging import log_new_agent, logging_enabled
+from ..runtime_logging import log_event, log_new_agent, logging_enabled
 from .agent import Agent
 from .chat import ChatResult
 from .conversable_agent import ConversableAgent
@@ -389,6 +389,8 @@ class GroupChat:
                     break
                 i = int(i)
                 if i > 0 and i <= _n_agents:
+                    if logging_enabled():
+                        log_event(source=self.admin_name, name="manual_select_speaker", next_agent=agents[i - 1].name)
                     return agents[i - 1]
                 else:
                     raise ValueError
@@ -400,7 +402,13 @@ class GroupChat:
         """Randomly select the next speaker."""
         if agents is None:
             agents = self.agents
-        return random.choice(agents)
+
+        random_selection = random.choice(agents)
+
+        if logging_enabled():
+            log_event(source=self.name, name="random_select_speaker", next_agent=random_selection.name)
+
+        return random_selection
 
     def _prepare_and_select_agents(
         self,
@@ -411,6 +419,14 @@ class GroupChat:
         speaker_selection_method = self.speaker_selection_method
         if isinstance(self.speaker_selection_method, Callable):
             selected_agent = self.speaker_selection_method(last_speaker, self)
+
+            if logging_enabled() and selected_agent:
+                log_event(
+                    source=self.admin_name,
+                    name=f"_prepare_and_select_agents:callable:{self.speaker_selection_method.__name__}",
+                    next_agent=selected_agent.name if selected_agent is not None else "[NONE]",
+                )
+
             if selected_agent is None:
                 raise NoEligibleSpeaker("Custom speaker selection function returned None. Terminating conversation.")
             elif isinstance(selected_agent, Agent):
@@ -517,6 +533,10 @@ class GroupChat:
             selected_agent = self.manual_select_speaker(graph_eligible_agents)
         elif speaker_selection_method.lower() == "round_robin":
             selected_agent = self.next_agent(last_speaker, graph_eligible_agents)
+
+            if logging_enabled():
+                log_event(source=self.admin_name, name="round_robin", next_agent=selected_agent.name)
+
         elif speaker_selection_method.lower() == "random":
             selected_agent = self.random_select_speaker(graph_eligible_agents)
         else:  # auto
@@ -527,6 +547,14 @@ class GroupChat:
                 select_speaker_messages[-1] = dict(select_speaker_messages[-1], function_call=None)
             if select_speaker_messages[-1].get("tool_calls", False):
                 select_speaker_messages[-1] = dict(select_speaker_messages[-1], tool_calls=None)
+
+        if logging_enabled() and selected_agent:
+            log_event(
+                source=self.admin_name,
+                name=f"speaker_selection_method:{speaker_selection_method}",
+                next_agent=selected_agent.name,
+            )
+
         return selected_agent, graph_eligible_agents, select_speaker_messages
 
     def select_speaker(self, last_speaker: Agent, selector: ConversableAgent) -> Agent:
@@ -538,7 +566,16 @@ class GroupChat:
             return selected_agent
         elif self.speaker_selection_method == "manual":
             # An agent has not been selected while in manual mode, so move to the next agent
-            return self.next_agent(last_speaker)
+            next_agent = self.next_agent(last_speaker)
+
+            if logging_enabled() and selected_agent:
+                log_event(
+                    source=self.admin_name,
+                    name="speaker_selection_method:manual-not-selected",
+                    next_agent=next_agent.name,
+                )
+
+            return next_agent
 
         # auto speaker selection with 2-agent chat
         return self._auto_select_speaker(last_speaker, selector, messages, agents)
@@ -551,7 +588,16 @@ class GroupChat:
             return selected_agent
         elif self.speaker_selection_method == "manual":
             # An agent has not been selected while in manual mode, so move to the next agent
-            return self.next_agent(last_speaker)
+            next_agent = self.next_agent(last_speaker)
+
+            if logging_enabled() and selected_agent:
+                log_event(
+                    source=self.admin_name,
+                    name="speaker_selection_method:manual-not-selected",
+                    next_agent=next_agent.name,
+                )
+
+            return next_agent
 
         # auto speaker selection with 2-agent chat
         return await self.a_auto_select_speaker(last_speaker, selector, messages, agents)
@@ -600,6 +646,16 @@ class GroupChat:
         Returns:
             Dict: a counter for mentioned agents.
         """
+
+        if logging_enabled():
+            import uuid
+
+            auto_select_speaker_id = uuid.uuid4()
+            log_event(
+                source=selector.name,
+                name="_auto_select_speaker start",
+                auto_select_speaker_id=str(auto_select_speaker_id),
+            )
 
         # If no agents are passed in, assign all the group chat's agents
         if agents is None:
@@ -672,6 +728,13 @@ class GroupChat:
             silent=not self.select_speaker_auto_verbose,  # Base silence on the verbose attribute
         )
 
+        if logging_enabled():
+            log_event(
+                source=selector.name,
+                name="_auto_select_speaker end",
+                auto_select_speaker_id=str(auto_select_speaker_id),
+            )
+
         return self._process_speaker_selection_result(result, last_speaker, agents)
 
     async def a_auto_select_speaker(
@@ -700,6 +763,16 @@ class GroupChat:
         Returns:
             Dict: a counter for mentioned agents.
         """
+
+        if logging_enabled():
+            import uuid
+
+            auto_select_speaker_id = uuid.uuid4()
+            log_event(
+                source=selector.name,
+                name="a_auto_select_speaker start",
+                auto_select_speaker_id=str(auto_select_speaker_id),
+            )
 
         # If no agents are passed in, assign all the group chat's agents
         if agents is None:
@@ -765,6 +838,13 @@ class GroupChat:
             clear_history=False,
             silent=not self.select_speaker_auto_verbose,  # Base silence on the verbose attribute
         )
+
+        if logging_enabled():
+            log_event(
+                source=selector.name,
+                name="a_auto_select_speaker end",
+                auto_select_speaker_id=str(auto_select_speaker_id),
+            )
 
         return self._process_speaker_selection_result(result, last_speaker, agents)
 
