@@ -268,6 +268,8 @@ class OpenAIClient:
         iostream = IOStream.get_default()
 
         completions: Completions = self._oai_client.chat.completions if "messages" in params else self._oai_client.completions  # type: ignore [attr-defined]
+        params = self.map_params(params.copy())
+
         # If streaming is enabled and has messages, then iterate over the chunks of the response.
         if params.get("stream", False) and "messages" in params:
             response_contents = [""] * params.get("n", 1)
@@ -407,6 +409,16 @@ class OpenAIClient:
         if isinstance(tmp_price1K, tuple):
             return (tmp_price1K[0] * n_input_tokens + tmp_price1K[1] * n_output_tokens) / 1000  # type: ignore [no-any-return]
         return tmp_price1K * (n_input_tokens + n_output_tokens) / 1000  # type: ignore [operator]
+
+    def map_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Maps parameters that are deprecated"""
+
+        # max_tokens is deprecated and replaced by max_completion_tokens as of 2024.09.12
+        if "max_tokens" in params:
+            params["max_completion_tokens"] = params.pop("max_tokens")
+            logger.warning("OpenAI: 'max_tokens' parameter is deprecated, converting to 'max_completion_tokens'.")
+
+        return params
 
     @staticmethod
     def get_usage(response: Union[ChatCompletion, Completion]) -> Dict:
