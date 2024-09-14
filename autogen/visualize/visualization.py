@@ -530,7 +530,7 @@ class Visualize:
                                     )
 
                             elif not event.json_state["reply_func_module"].startswith("autogen."):
-                                # Custom reply function, record it
+                                # Custom reply function, assuming it's not part of the AutoGen package
                                 # Keep this elif at the bottom
 
                                 add_node_custom_reply_func(self.design_config, current_level, event, reply_func_name)
