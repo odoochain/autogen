@@ -141,7 +141,7 @@ def load_log_file(
         log_lines = file.readlines()
 
     # Iterate over each line in the log
-    for line in log_lines:
+    for i, line in enumerate(log_lines):
         # Extract the session ID
         if line.startswith("Started new session with Session ID:"):
             session_id = line.split(":")[-1].strip()
@@ -172,7 +172,7 @@ def load_log_file(
                 elif isinstance(line_object, LogInvocation):
                     new_object = add_log_invocation(line_object, invocations)
                 else:
-                    print(f"Uh oh, unknown object for the line, type is {type(line_object)}")
+                    print(f"Unknown object for the line #{i+1} (ignoring): {line_data}")
 
                 if new_object:
                     all_ordered.append(line_object)
