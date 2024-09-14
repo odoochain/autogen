@@ -86,21 +86,21 @@ def parse_log_line(line_data: Dict) -> Union[LogSession, LogClient, LogEvent, Lo
 def add_log_client(client: LogClient, log_clients: Dict[int, LogClient]) -> bool:
     if client.client_id not in log_clients:
         log_clients[client.client_id] = client
-        print(f"Client {client.client_id} added - {client.class_name}.")
+        # print(f"Client {client.client_id} added - {client.class_name}.")
         return True
     else:
-        print(f"Client {client.client_id} already exists. No duplicate added.")
+        # print(f"Client {client.client_id} already exists. No duplicate added.")
         return False
 
 
 def add_log_agent(agent: LogAgent, log_agents: Dict[int, LogAgent]) -> bool:
     if agent.id not in log_agents:
         log_agents[agent.id] = agent
-        print(f"Agent {agent.id} added - {agent.agent_name} ({agent.agent_type}).")
+        # print(f"Agent {agent.id} added - {agent.agent_name} ({agent.agent_type}).")
         return True
     else:
         log_agents[agent.id] = agent
-        print(f"Agent {agent.id} already exists. Updating.")
+        # print(f"Agent {agent.id} already exists. Updating.")
         return False
 
 
@@ -108,20 +108,20 @@ def add_log_agent(agent: LogAgent, log_agents: Dict[int, LogAgent]) -> bool:
 def add_log_event(event: LogEvent, log_events: Dict[float, LogEvent]) -> bool:
     if event.timestamp not in log_events:
         log_events[event.timestamp] = event
-        print(f"Event at {event.timestamp} added - {event.source_name}, {event.event_name}.")
+        # print(f"Event at {event.timestamp} added - {event.source_name}, {event.event_name}.")
         return True
     else:
-        print(f"Event at {event.timestamp} already exists. No duplicate added.")
+        # print(f"Event at {event.timestamp} already exists. No duplicate added.")
         return False
 
 
 def add_log_invocation(invocation: LogInvocation, log_invocations: Dict[int, LogInvocation]) -> bool:
     if invocation.invocation_id not in log_invocations:
         log_invocations[invocation.invocation_id] = invocation
-        print(f"Invocation {invocation.invocation_id} added.")
+        # print(f"Invocation {invocation.invocation_id} added.")
         return True
     else:
-        print(f"Invocation {invocation.invocation_id} already exists. No duplicate added.")
+        # print(f"Invocation {invocation.invocation_id} already exists. No duplicate added.")
         return False
 
 
