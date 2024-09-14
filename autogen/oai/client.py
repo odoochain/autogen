@@ -416,7 +416,27 @@ class OpenAIClient:
         # max_tokens is deprecated and replaced by max_completion_tokens as of 2024.09.12
         if "max_tokens" in params:
             params["max_completion_tokens"] = params.pop("max_tokens")
-            logger.warning("OpenAI: 'max_tokens' parameter is deprecated, converting to 'max_completion_tokens'.")
+            logger.warning("OpenAI API: 'max_tokens' parameter is deprecated, converting to 'max_completion_tokens'.")
+
+        if params["model"].startswith("o1"):
+            # Beta limitation - remove streaming, convert system messages to user, remove other parameters which have fixed values
+            # https://platform.openai.com/docs/guides/reasoning/beta-limitations
+            if "stream" in params:
+                if params["stream"]:
+                    logger.warning("OpenAI API o1 beta limitation: streaming is not supported.")
+                params.pop("stream")
+
+            for message in params["messages"]:
+                if message["role"] == "system":
+                    message["role"] = "user"
+
+            fixed_params = ["temperature", "top_p", "n", "presence_penalty", "frequency_penalty"]
+            for param_name in fixed_params:
+                if param_name in params:
+                    logger.warning(
+                        f"OpenAI API o1 beta limitation: {param_name} parameter has a fixed value, removing."
+                    )
+                    params.pop(param_name)
 
         return params
 
