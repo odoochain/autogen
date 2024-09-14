@@ -30,6 +30,7 @@ __all__ = [
     "add_node_summary",
     "add_node_terminate",
     "add_node_code_execution",
+    "add_node_custom_reply_func",
     "add_node_human",
     "add_node_event_reply_func_executed",
     "add_node_invocation",
@@ -245,6 +246,22 @@ def add_node_code_execution(
         tooltip=tooltip_text,
         href_text=href_text,
         color=edge_color,
+        style="filled",
+        fillcolor=design_config["fill_color"],
+        fontcolor=design_config["node_font_color"],
+        fontname=design_config["font_names"],
+        penwidth=design_config["node_pen_width"],
+    )
+
+
+def add_node_custom_reply_func(design_config: Dict, dot: Digraph, event: LogEvent, reply_func_name: str):
+    """Add a custom reply function event node to the diagram"""
+
+    dot.node(
+        event.event_id,
+        reply_func_name,
+        shape=design_config["node_shape"]["custom_reply_func"],
+        color=design_config["border_color"],
         style="filled",
         fillcolor=design_config["fill_color"],
         fontcolor=design_config["node_font_color"],
@@ -585,10 +602,14 @@ def create_tooltip(message):
     if isinstance(message, str):
         return message
     elif isinstance(message, dict):
-        tooltip_text = message["content"] if message["content"] else ""
-        if "tool_calls" in message and message["tool_calls"] is not None:
-            for tool_call in message["tool_calls"]:
-                tooltip_text += f"\nTool call: {json.dumps(tool_call['function'])}"
+        if isinstance(message["content"], list):
+            # If it's a list, just serialise it
+            return str(message["content"])
+        else:
+            tooltip_text = message["content"] if message["content"] else ""
+            if "tool_calls" in message and message["tool_calls"] is not None:
+                for tool_call in message["tool_calls"]:
+                    tooltip_text += f"\nTool call: {json.dumps(tool_call['function'])}"
         return tooltip_text
     else:
         return "Unable to create tooltip"

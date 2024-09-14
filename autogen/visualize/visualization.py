@@ -25,6 +25,7 @@ from .visualise_utils import (
     add_invocation_to_event_return_edge,
     add_node_agent,
     add_node_code_execution,
+    add_node_custom_reply_func,
     add_node_event_reply_func_executed,
     add_node_human,
     add_node_info,
@@ -69,6 +70,7 @@ class Visualize:
 
         # Colours, fonts, shapes
         # Future work to be able to provide your own style
+        # Shapes: https://graphviz.org/doc/info/shapes.html
         self.design_config: Dict = {
             "canvas_replace_bg": "#123456",  # Note: colour will be replaced by "url(#bg_pattern)" which is a pattern defined in the SVG (added post-creation). Colour should be unique.
             "canvas_pattern_bg": "#222222",
@@ -97,6 +99,7 @@ class Visualize:
                 "invocation": "invhouse",
                 "info": "note",
                 "code_execution": "cds",
+                "custom_reply_func": "septagon",
                 "human": "Mdiamond",
             },
         }
@@ -525,6 +528,20 @@ class Visualize:
                                     add_code_execution_to_agent_return_edge(
                                         self.design_config, current_level, executing_agent, event, exitcode
                                     )
+
+                            elif not event.json_state["reply_func_module"].startswith("autogen."):
+                                # Custom reply function, record it
+                                # Keep this elif at the bottom
+
+                                add_node_custom_reply_func(self.design_config, current_level, event, reply_func_name)
+                                add_event_to_agent_return_edge(
+                                    self.design_config,
+                                    current_level,
+                                    current_agent,
+                                    event,
+                                    "",
+                                    create_tooltip(event.json_state["reply"]),
+                                )
 
                             # If we have available invocations, add them to the agent in a return sequence
                             if len(available_invocations) > 0:
