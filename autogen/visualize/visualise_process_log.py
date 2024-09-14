@@ -26,15 +26,18 @@ def parse_log_line(line_data: Dict) -> Union[LogSession, LogClient, LogEvent, Lo
         return LogSession(session_id)
 
     # Check for client data
-    if next(iter(line_data)) == "client_id" and "class" in line_data:  # First key is client_id
+    if next(iter(line_data)) == "client_id" and (
+        "class" in line_data or "model_client_class" in line_data
+    ):  # First key is client_id
         return LogClient(
             client_id=line_data.get("client_id"),
             wrapper_id=line_data.get("wrapper_id"),
             session_id=line_data.get("session_id"),
-            class_name=line_data.get("class"),
+            class_name=line_data.get("class") if "class" in line_data else line_data.get("model_client_class"),
             json_state=line_data.get("json_state"),
             timestamp=line_data.get("timestamp"),
             thread_id=line_data.get("thread_id"),
+            is_custom_class=False if "class" in line_data else True,
         )
 
     # Check for agent data

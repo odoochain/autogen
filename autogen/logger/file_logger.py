@@ -248,7 +248,31 @@ class FileLogger(BaseLogger):
             )
             self.logger.info(log_data)
         except Exception as e:
-            self.logger.error(f"[file_logger] Failed to log event {e}")
+            self.logger.error(f"[file_logger] Failed to log new client {e}")
+
+    def log_new_custom_client(
+        self, client: Any, wrapper: OpenAIWrapper, init_args: Dict[str, Any], model_client_cls_name: str
+    ) -> None:
+        """
+        Log a new client instance.
+        """
+        thread_id = threading.get_ident()
+
+        try:
+            log_data = json.dumps(
+                {
+                    "client_id": id(client),
+                    "wrapper_id": id(wrapper),
+                    "session_id": self.session_id,
+                    "model_client_class": model_client_cls_name,
+                    "json_state": try_to_dict(init_args),
+                    "timestamp": get_current_ts(),
+                    "thread_id": thread_id,
+                }
+            )
+            self.logger.info(log_data)
+        except Exception as e:
+            self.logger.error(f"[file_logger] Failed to log new custom client class {e}")
 
     def log_function_use(self, source: Union[str, Agent], function: F, args: Dict[str, Any], returns: Any) -> None:
         """

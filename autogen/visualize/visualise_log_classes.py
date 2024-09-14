@@ -24,6 +24,7 @@ class LogClient:
         json_state: str,
         timestamp: str,
         thread_id: int,
+        is_custom_class: bool,
     ):
         self.client_id = client_id
         self.wrapper_id = wrapper_id
@@ -35,6 +36,7 @@ class LogClient:
         self.json_state = json_state
         self.timestamp = timestamp
         self.thread_id = thread_id
+        self.is_custom_class = is_custom_class
 
     def __str__(self):
         return f"Client ({self.client_id}) - {self.class_name}"
