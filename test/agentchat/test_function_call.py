@@ -238,7 +238,7 @@ def test_update_function():
     config_list_gpt4 = autogen.config_list_from_json(
         OAI_CONFIG_LIST,
         filter_dict={
-            "tags": ["gpt-4", "gpt-4-32k", "gpt-4o", "gpt-4o-mini", "o1-preview", "o1-mini"],
+            "tags": ["gpt-4", "gpt-4-32k", "gpt-4o", "gpt-4o-mini"],
         },
         file_location=KEY_LOC,
     )

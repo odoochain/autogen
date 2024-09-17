@@ -268,7 +268,7 @@ class OpenAIClient:
         iostream = IOStream.get_default()
 
         completions: Completions = self._oai_client.chat.completions if "messages" in params else self._oai_client.completions  # type: ignore [attr-defined]
-        params = self.map_params(params.copy())
+        params = self._map_params(params.copy())
 
         # If streaming is enabled and has messages, then iterate over the chunks of the response.
         if params.get("stream", False) and "messages" in params:
@@ -410,7 +410,7 @@ class OpenAIClient:
             return (tmp_price1K[0] * n_input_tokens + tmp_price1K[1] * n_output_tokens) / 1000  # type: ignore [no-any-return]
         return tmp_price1K * (n_input_tokens + n_output_tokens) / 1000  # type: ignore [operator]
 
-    def map_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _map_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Maps parameters that are deprecated"""
 
         # max_tokens is deprecated and replaced by max_completion_tokens as of 2024.09.12
@@ -427,8 +427,12 @@ class OpenAIClient:
                 params.pop("stream")
 
             for message in params["messages"]:
+                warned = False
                 if message["role"] == "system":
                     message["role"] = "user"
+                    if not warned:
+                        logger.warning("OpenAI API o1 beta limitation: changing system messages to user messages.")
+                    warned = True
 
             fixed_params = ["temperature", "top_p", "n", "presence_penalty", "frequency_penalty"]
             for param_name in fixed_params:
