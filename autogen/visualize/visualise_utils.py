@@ -9,12 +9,12 @@
 
 import json
 import re
-from typing import Dict, List
+from typing import Dict, List, Union
 from uuid import uuid4
 
 from graphviz import Digraph
 
-from .visualise_log_classes import LogAgent, LogClient, LogEvent, LogInvocation
+from .visualise_log_classes import LogAgent, LogClient, LogEvent, LogFlow, LogInvocation
 
 # for * imports, import all functions
 __all__ = [
@@ -32,17 +32,17 @@ __all__ = [
     "add_node_code_execution",
     "add_node_custom_reply_func",
     "add_node_human",
-    "add_node_event_reply_func_executed",
+    "add_node_eventflow_reply_func_executed",
     "add_node_invocation",
     "add_node_info",
     "add_agent_to_agent_edge",
-    "add_agent_to_event_edge",
-    "add_event_to_event_edge",
+    "add_agent_to_eventflow_edge",
+    "add_eventflow_to_eventflow_edge",
     "add_event_to_node_edge",
     "add_event_to_agent_edge",
     "add_invocation_to_agent_return_edge",
-    "add_invocation_to_event_return_edge",
-    "add_event_to_agent_return_edge",
+    "add_invocation_to_eventflow_return_edge",
+    "add_eventflow_to_agent_return_edge",
     "add_code_execution_to_agent_return_edge",
     "add_start_to_agent_edge",
     "add_invocation_to_event_edge",
@@ -200,11 +200,11 @@ def add_node_agent(design_config: Dict, agents: Dict[int, LogAgent], dot: Digrap
         add_start_to_agent_edge(design_config, dot, agent)
 
 
-def add_node_summary(design_config: Dict, dot: Digraph, event: LogEvent):
+def add_node_summary(design_config: Dict, dot: Digraph, eventflow: Union[LogEvent | LogFlow]):
     """Add a summary node to the diagram"""
 
     dot.node(
-        event.event_id,
+        _get_eventflow_id(eventflow),
         "Summarize",
         shape=design_config["node_shape"]["summary"],
         color=design_config["border_color"],
@@ -286,14 +286,14 @@ def add_node_human(design_config: Dict, dot: Digraph, event: LogEvent):
     )
 
 
-def add_node_event_reply_func_executed(
-    design_config: Dict, dot: Digraph, event: LogEvent, event_name: str, shape_name: str
+def add_node_eventflow_reply_func_executed(
+    design_config: Dict, dot: Digraph, eventflow: Union[LogEvent | LogFlow], label: str, shape_name: str
 ):
     """Add an event node to the diagram"""
 
     dot.node(
-        event.event_id,
-        event_name,
+        _get_eventflow_id(eventflow),
+        label,
         shape=shape_name,
         color=design_config["border_color"],
         style="filled",
@@ -384,11 +384,11 @@ def add_agent_to_agent_edge(
     )
 
 
-def add_agent_to_event_edge(
+def add_agent_to_eventflow_edge(
     design_config: Dict,
     dot: Digraph,
     agent: LogAgent,
-    event: LogEvent,
+    eventflow: Union[LogEvent | LogFlow],
     edge_text: str,
     tooltip_text: str = "",
     href_text: str = "",
@@ -397,7 +397,7 @@ def add_agent_to_event_edge(
 
     dot.edge(
         get_agent_node_id(agent),
-        event.event_id,
+        _get_eventflow_id(eventflow),
         label=edge_text,
         labeltooltip=tooltip_text,
         labelhref=href_text,
@@ -408,11 +408,11 @@ def add_agent_to_event_edge(
     )
 
 
-def add_event_to_event_edge(
+def add_eventflow_to_eventflow_edge(
     design_config: Dict,
     dot: Digraph,
-    event_one: LogEvent,
-    event_two: LogEvent,
+    eventflow_one: Union[LogEvent | LogEvent],
+    eventflow_two: Union[LogEvent | LogEvent],
     edge_text: str,
     tooltip_text: str = "",
     href_text: str = "",
@@ -420,8 +420,8 @@ def add_event_to_event_edge(
     """Adds an edge between two events"""
 
     dot.edge(
-        event_one.event_id,
-        event_two.event_id,
+        _get_eventflow_id(eventflow_one),
+        _get_eventflow_id(eventflow_two),
         label=edge_text,
         labeltooltip=tooltip_text,
         labelhref=href_text,
@@ -505,10 +505,10 @@ def add_invocation_to_agent_return_edge(
     dot.edge(invocation.invocation_id, get_agent_node_id(agent), color=design_config["edge_color"])
 
 
-def add_invocation_to_event_return_edge(
+def add_invocation_to_eventflow_return_edge(
     design_config: Dict,
     dot: Digraph,
-    event: LogEvent,
+    eventflow: Union[LogEvent | LogFlow],
     invocation: LogInvocation,
     edge_text: str,
     tooltip_text: str = "",
@@ -517,7 +517,7 @@ def add_invocation_to_event_return_edge(
     """Adds an edge between event and invocation and a return edge"""
 
     dot.edge(
-        event.event_id,
+        _get_eventflow_id(eventflow),
         invocation.invocation_id,
         label=edge_text,
         labeltooltip=tooltip_text,
@@ -527,23 +527,23 @@ def add_invocation_to_event_return_edge(
         color=design_config["edge_color"],
         fontname=design_config["font_names"],
     )
-    dot.edge(invocation.invocation_id, event.event_id, color=design_config["edge_color"])
+    dot.edge(invocation.invocation_id, _get_eventflow_id(eventflow), color=design_config["edge_color"])
 
 
-def add_event_to_agent_return_edge(
+def add_eventflow_to_agent_return_edge(
     design_config: Dict,
     dot: Digraph,
     agent: LogAgent,
-    event: LogEvent,
+    eventflow: Union[LogEvent | LogFlow],
     edge_text: str,
     tooltip_text: str = "",
     href_text: str = "",
 ):
-    """Adds an edge between agent and event and a return edge"""
+    """Adds an edge between agent and event/flow and a return edge"""
 
     dot.edge(
         get_agent_node_id(agent),
-        event.event_id,
+        _get_eventflow_id(eventflow),
         label=edge_text,
         labeltooltip=tooltip_text,
         labelhref=href_text,
@@ -552,7 +552,7 @@ def add_event_to_agent_return_edge(
         color=design_config["edge_color"],
         fontname=design_config["font_names"],
     )
-    dot.edge(event.event_id, get_agent_node_id(agent), color=design_config["edge_color"])
+    dot.edge(_get_eventflow_id(eventflow), get_agent_node_id(agent), color=design_config["edge_color"])
 
 
 def add_code_execution_to_agent_return_edge(
@@ -636,3 +636,8 @@ def extract_invocation_response(invocation: LogInvocation) -> str:
             return content
 
     return str(invocation.response)
+
+
+def _get_eventflow_id(eventflow: Union[LogEvent | LogFlow]):
+    """Returns the event or flow id"""
+    return eventflow.event_id if isinstance(eventflow, LogEvent) else eventflow.flow_id

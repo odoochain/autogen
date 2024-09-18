@@ -7,17 +7,17 @@
 import json
 from typing import Any, Dict, List, Union
 
-from .visualise_log_classes import LogAgent, LogClient, LogEvent, LogInvocation, LogSession
+from .visualise_log_classes import LogAgent, LogClient, LogEvent, LogFlow, LogInvocation, LogSession
 
 
-def parse_log_line(line_data: Dict) -> Union[LogSession, LogClient, LogEvent, LogAgent, LogInvocation, None]:
+def parse_log_line(line_data: Dict) -> Union[LogSession, LogClient, LogEvent, LogFlow, LogAgent, LogInvocation, None]:
     """Parses a line of log data and returns the corresponding object.
 
     Args:
         line_data (Dict): The log data as a dictionary.
 
     Returns:
-        Union[LogSession, LogClient, LogEvent, LogAgent, LogInvocation, None]: The parsed object, or None if the line cannot be parsed.
+        Union[LogSession, LogClient, LogEvent, LogFlow, LogAgent, LogInvocation, None]: The parsed object, or None if the line cannot be parsed.
     """
 
     # Check for session ID
@@ -50,6 +50,18 @@ def parse_log_line(line_data: Dict) -> Union[LogSession, LogClient, LogEvent, Lo
             current_time=line_data.get("current_time"),
             agent_type=line_data.get("agent_type"),
             args=line_data.get("args"),
+            thread_id=line_data.get("thread_id"),
+        )
+
+    # Check for flow data
+    if next(iter(line_data)) == "source_id" and "code_point" in line_data:
+        return LogFlow(
+            source_id=line_data.get("source_id"),
+            source_name=line_data.get("source_name"),
+            code_point=line_data.get("code_point"),
+            code_point_id=line_data.get("code_point_id"),
+            info=line_data.get("info"),
+            timestamp=line_data.get("timestamp"),
             thread_id=line_data.get("thread_id"),
         )
 
@@ -118,6 +130,17 @@ def add_log_event(event: LogEvent, log_events: Dict[float, LogEvent]) -> bool:
         return False
 
 
+# Function to add a new LogFlow to the dictionary
+def add_log_flow(flow: LogFlow, log_flows: Dict[float, LogFlow]) -> bool:
+    if flow.timestamp not in log_flows:
+        log_flows[flow.timestamp] = flow
+        print(f"Flow at {flow.timestamp} added - {flow.code_point}, {flow.code_point_id}.")
+        return True
+    else:
+        print(f"Flow at {flow.timestamp} already exists. No duplicate added.")
+        return False
+
+
 def add_log_invocation(invocation: LogInvocation, log_invocations: Dict[int, LogInvocation]) -> bool:
     if invocation.invocation_id not in log_invocations:
         log_invocations[invocation.invocation_id] = invocation
@@ -134,8 +157,9 @@ def load_log_file(
     wrapper_clients: Dict[int, List],
     agents: Dict[int, LogAgent],
     events: Dict[float, LogEvent],
+    flows: Dict[float, LogFlow],
     invocations: Dict[str, LogInvocation],
-    all_ordered: List[LogClient | LogAgent | LogEvent | LogInvocation | LogSession],
+    all_ordered: List[LogClient | LogAgent | LogEvent | LogFlow | LogInvocation | LogSession],
 ) -> str:
     """Loads an AutoGen log file into respective dictionaries and an ordered list, returning the session id"""
 
@@ -172,10 +196,13 @@ def load_log_file(
                     new_object = add_log_agent(line_object, agents)
                 elif isinstance(line_object, LogEvent):
                     new_object = add_log_event(line_object, events)
+                elif isinstance(line_object, LogFlow):
+                    new_object = add_log_flow(line_object, flows)
                 elif isinstance(line_object, LogInvocation):
                     new_object = add_log_invocation(line_object, invocations)
                 else:
-                    print(f"Unknown object for the line #{i+1} (ignoring): {line_data}")
+                    if "wrapper_id" not in line_data:
+                        print(f"Unknown object for the line #{i+1} (ignoring): {line_data}")
 
                 if new_object:
                     all_ordered.append(line_object)

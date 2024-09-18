@@ -141,6 +141,20 @@ class BaseLogger(ABC):
         """
 
     @abstractmethod
+    def log_flow(
+        self, source: Union[str, Agent], code_point: str, code_point_id: str, **kwargs: Dict[str, Any]
+    ) -> None:
+        """
+        Log a point in code flow
+
+        Args:
+            source (str or Agent):      The source/creator of the event as a string name or an Agent instance
+            code_point (str):           The code point name
+            code_point_id (str):        A unique id to associated related flow code points
+            kwargs (dict):              The flow information to log
+        """
+
+    @abstractmethod
     def stop(self) -> None:
         """
         Close the connection to the logging database, and stop logging.

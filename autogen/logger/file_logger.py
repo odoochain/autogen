@@ -295,7 +295,53 @@ class FileLogger(BaseLogger):
             )
             self.logger.info(log_data)
         except Exception as e:
-            self.logger.error(f"[file_logger] Failed to log event {e}")
+            self.logger.error(f"[file_logger] Failed to log new function use {e}")
+
+    def log_flow(
+        self, source: Union[str, Agent], code_point: str, code_point_id: str, **kwargs: Dict[str, Any]
+    ) -> None:
+        """
+        Log a point in code flow
+        """
+        from autogen import Agent
+
+        json_args = json.dumps(kwargs, default=lambda o: f"<<non-serializable: {type(o).__qualname__}>>")
+        thread_id = threading.get_ident()
+
+        if isinstance(source, Agent):
+            try:
+                log_data = json.dumps(
+                    {
+                        "source_id": id(source),
+                        "source_name": str(source.name) if hasattr(source, "name") else source,
+                        "agent_module": source.__module__,
+                        "agent_class": source.__class__.__name__,
+                        "code_point": code_point,
+                        "code_point_id": code_point_id,
+                        "info": json_args,
+                        "timestamp": get_current_ts(),
+                        "thread_id": thread_id,
+                    }
+                )
+                self.logger.info(log_data)
+            except Exception as e:
+                self.logger.error(f"[file_logger] Failed to log flow {e}")
+        else:
+            try:
+                log_data = json.dumps(
+                    {
+                        "source_id": id(source),
+                        "source_name": str(source.name) if hasattr(source, "name") else source,
+                        "code_point": code_point,
+                        "code_point_id": code_point_id,
+                        "info": json_args,
+                        "timestamp": get_current_ts(),
+                        "thread_id": thread_id,
+                    }
+                )
+                self.logger.info(log_data)
+            except Exception as e:
+                self.logger.error(f"[file_logger] Failed to log flow {e}")
 
     def get_connection(self) -> None:
         """Method is intentionally left blank because there is no specific connection needed for the FileLogger."""

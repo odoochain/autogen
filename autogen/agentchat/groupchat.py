@@ -18,7 +18,7 @@ from ..exception_utils import AgentNameConflict, NoEligibleSpeaker, UndefinedNex
 from ..formatting_utils import colored
 from ..graph_utils import check_graph_validity, invert_disallowed_to_allowed
 from ..io.base import IOStream
-from ..runtime_logging import log_event, log_new_agent, logging_enabled
+from ..runtime_logging import log_flow, log_new_agent, logging_enabled
 from .agent import Agent
 from .chat import ChatResult
 from .contrib.capabilities import transform_messages
@@ -403,7 +403,12 @@ class GroupChat:
                 i = int(i)
                 if i > 0 and i <= _n_agents:
                     if logging_enabled():
-                        log_event(source=self.admin_name, name="manual_select_speaker", next_agent=agents[i - 1].name)
+                        log_flow(
+                            source=self.admin_name,
+                            code_point="manual_select_speaker",
+                            code_point_id=None,
+                            next_agent=agents[i - 1].name,
+                        )
                     return agents[i - 1]
                 else:
                     raise ValueError
@@ -419,7 +424,12 @@ class GroupChat:
         random_selection = random.choice(agents)
 
         if logging_enabled():
-            log_event(source=self.name, name="random_select_speaker", next_agent=random_selection.name)
+            log_flow(
+                source=self.name,
+                code_point="random_select_speaker",
+                code_point_id=None,
+                next_agent=random_selection.name,
+            )
 
         return random_selection
 
@@ -434,9 +444,10 @@ class GroupChat:
             selected_agent = self.speaker_selection_method(last_speaker, self)
 
             if logging_enabled() and selected_agent:
-                log_event(
+                log_flow(
                     source=self.admin_name,
-                    name=f"_prepare_and_select_agents:callable:{self.speaker_selection_method.__name__}",
+                    code_point=f"_prepare_and_select_agents:callable:{self.speaker_selection_method.__name__}",
+                    code_point_id=None,
                     next_agent=selected_agent.name if selected_agent is not None else "[NONE]",
                 )
 
@@ -548,7 +559,9 @@ class GroupChat:
             selected_agent = self.next_agent(last_speaker, graph_eligible_agents)
 
             if logging_enabled():
-                log_event(source=self.admin_name, name="round_robin", next_agent=selected_agent.name)
+                log_flow(
+                    source=self.admin_name, code_point="round_robin", code_point_id=None, next_agent=selected_agent.name
+                )
 
         elif speaker_selection_method.lower() == "random":
             selected_agent = self.random_select_speaker(graph_eligible_agents)
@@ -562,9 +575,10 @@ class GroupChat:
                 select_speaker_messages[-1] = dict(select_speaker_messages[-1], tool_calls=None)
 
         if logging_enabled() and selected_agent:
-            log_event(
+            log_flow(
                 source=self.admin_name,
-                name=f"speaker_selection_method:{speaker_selection_method}",
+                code_point=f"speaker_selection_method:{speaker_selection_method}",
+                code_point_id=None,
                 next_agent=selected_agent.name,
             )
 
@@ -582,9 +596,10 @@ class GroupChat:
             next_agent = self.next_agent(last_speaker)
 
             if logging_enabled() and selected_agent:
-                log_event(
+                log_flow(
                     source=self.admin_name,
-                    name="speaker_selection_method:manual-not-selected",
+                    code_point="speaker_selection_method:manual-not-selected",
+                    code_point_id=None,
                     next_agent=next_agent.name,
                 )
 
@@ -604,9 +619,10 @@ class GroupChat:
             next_agent = self.next_agent(last_speaker)
 
             if logging_enabled() and selected_agent:
-                log_event(
+                log_flow(
                     source=self.admin_name,
-                    name="speaker_selection_method:manual-not-selected",
+                    code_point="speaker_selection_method:manual-not-selected",
+                    code_point_id=None,
                     next_agent=next_agent.name,
                 )
 
@@ -664,9 +680,10 @@ class GroupChat:
             import uuid
 
             auto_select_speaker_id = uuid.uuid4()
-            log_event(
+            log_flow(
                 source=selector.name,
-                name="_auto_select_speaker start",
+                code_point="_auto_select_speaker start",
+                code_point_id=None,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 
@@ -746,9 +763,10 @@ class GroupChat:
         )
 
         if logging_enabled():
-            log_event(
+            log_flow(
                 source=selector.name,
-                name="_auto_select_speaker end",
+                code_point="_auto_select_speaker end",
+                code_point_id=None,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 
@@ -785,9 +803,10 @@ class GroupChat:
             import uuid
 
             auto_select_speaker_id = uuid.uuid4()
-            log_event(
+            log_flow(
                 source=selector.name,
-                name="a_auto_select_speaker start",
+                code_point="a_auto_select_speaker start",
+                code_point_id=None,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 
@@ -861,9 +880,10 @@ class GroupChat:
         )
 
         if logging_enabled():
-            log_event(
+            log_flow(
                 source=selector.name,
-                name="a_auto_select_speaker end",
+                code_point="a_auto_select_speaker end",
+                code_point_id=None,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 

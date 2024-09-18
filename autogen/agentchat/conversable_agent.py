@@ -38,7 +38,7 @@ from ..formatting_utils import colored
 from ..function_utils import get_function_schema, load_basemodels_if_needed, serialize_to_str
 from ..io.base import IOStream
 from ..oai.client import ModelClient, OpenAIWrapper
-from ..runtime_logging import log_event, log_function_use, log_new_agent, logging_enabled
+from ..runtime_logging import log_event, log_flow, log_function_use, log_new_agent, logging_enabled
 from .agent import Agent, LLMAgent
 from .chat import ChatResult, a_initiate_chats, initiate_chats
 from .utils import consolidate_chat_info, gather_usage_summary
@@ -435,17 +435,17 @@ class ConversableAgent(LLMAgent):
             import uuid
 
             unique_nested_id = uuid.uuid4()
-            log_event(
+            log_flow(
                 source=recipient,
-                name="_summary_from_nested_chat start",
-                nested_chat_id=str(unique_nested_id),
+                code_point="_summary_from_nested_chat start",
+                code_point_id=str(unique_nested_id),
                 sender=sender.name,
             )
 
         res = initiate_chats(chat_to_run)
 
         if logging_enabled():  # Nested chat log - end
-            log_event(source=recipient, name="_summary_from_nested_chat end", nested_chat_id=str(unique_nested_id))
+            log_flow(source=recipient, code_point="_summary_from_nested_chat end", code_point_id=str(unique_nested_id))
 
         return True, res[-1].summary
 
@@ -1111,7 +1111,7 @@ class ConversableAgent(LLMAgent):
                 self.send(msg2send, recipient, request_reply=True, silent=silent)
             else:
                 if logging_enabled():  # Log max turns being hit
-                    log_event(source=self, name="_initiate_chat max_turns", turns=max_turns)
+                    log_flow(source=self, code_point="_initiate_chat max_turns", code_point_id=None, turns=max_turns)
         else:
             self._prepare_chat(recipient, clear_history)
             if isinstance(message, Callable):
@@ -1180,7 +1180,7 @@ class ConversableAgent(LLMAgent):
                 await self.a_send(msg2send, recipient, request_reply=True, silent=silent)
             else:
                 if logging_enabled():  # Log max turns being hit
-                    log_event(source=self, name="_initiate_chat max_turns", turns=max_turns)
+                    log_flow(source=self, code_point="_initiate_chat max_turns", code_point_id=None, turns=max_turns)
         else:
             self._prepare_chat(recipient, clear_history)
             if isinstance(message, Callable):
@@ -1267,7 +1267,7 @@ class ConversableAgent(LLMAgent):
             warnings.warn(f"Cannot extract summary using last_msg: {e}. Using an empty str as summary.", UserWarning)
 
         if logging_enabled():
-            log_event(source=sender, name="_last_msg_as_summary", summary=summary)
+            log_flow(source=sender, code_point="_last_msg_as_summary", code_point_id=None, summary=summary)
 
         return summary
 
@@ -1293,8 +1293,13 @@ class ConversableAgent(LLMAgent):
             summary = ""
 
         if logging_enabled():
-            log_event(
-                source=sender, name="_reflection_with_llm_as_summary", prompt=prompt, msg_list=msg_list, summary=summary
+            log_flow(
+                source=sender,
+                code_point="_reflection_with_llm_as_summary",
+                code_point_id=None,
+                prompt=prompt,
+                msg_list=msg_list,
+                summary=summary,
             )
 
         return summary
@@ -1761,9 +1766,10 @@ class ConversableAgent(LLMAgent):
                 }
 
             if logging_enabled():  # Logging, including function name
-                log_event(
+                log_flow(
                     source=self,
-                    name="generate_tool_calls_reply",
+                    code_point="generate_tool_calls_reply",
+                    code_point_id=None,
                     tool_call_id=str(tool_call_id) if tool_call_id is not None else "",
                     function_name=function_call["name"],
                     function_arguments=function_call["arguments"],
@@ -1821,9 +1827,10 @@ class ConversableAgent(LLMAgent):
             # Log each tool return along with the corresponding function info
             if logging_enabled():
                 for tool_return, tool_call_info in zip(tool_returns, tool_calls_info):
-                    log_event(
+                    log_flow(
                         source=self,
-                        name="a_generate_tool_calls_reply",
+                        code_point="a_generate_tool_calls_reply",
+                        code_point_id=None,
                         tool_call_id=(
                             str(tool_call_info["tool_call_id"]) if tool_call_info["tool_call_id"] is not None else ""
                         ),

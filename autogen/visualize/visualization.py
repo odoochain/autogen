@@ -12,21 +12,21 @@ from uuid import uuid4
 from graphviz import Digraph
 
 from ..logger import FileLogger, SqliteLogger
-from .visualise_log_classes import LogAgent, LogClient, LogEvent, LogInvocation, LogSession
+from .visualise_log_classes import LogAgent, LogClient, LogEvent, LogFlow, LogInvocation, LogSession
 from .visualise_process_log import load_log_file
 from .visualise_utils import (
     add_agent_to_agent_edge,
-    add_agent_to_event_edge,
+    add_agent_to_eventflow_edge,
     add_code_execution_to_agent_return_edge,
-    add_event_to_agent_return_edge,
-    add_event_to_event_edge,
     add_event_to_node_edge,
+    add_eventflow_to_agent_return_edge,
+    add_eventflow_to_eventflow_edge,
     add_invocation_to_agent_return_edge,
-    add_invocation_to_event_return_edge,
+    add_invocation_to_eventflow_return_edge,
     add_node_agent,
     add_node_code_execution,
     add_node_custom_reply_func,
-    add_node_event_reply_func_executed,
+    add_node_eventflow_reply_func_executed,
     add_node_human,
     add_node_info,
     add_node_invocation,
@@ -122,8 +122,9 @@ class Visualize:
         clients: Dict[int, LogClient] = {}
         agents: Dict[int, LogAgent] = {}
         events: Dict[float, LogEvent] = {}
+        flows: Dict[float, LogFlow] = {}
         invocations: Dict[str, LogInvocation] = {}
-        all_ordered: List[LogClient | LogAgent | LogEvent | LogInvocation | LogSession] = []
+        all_ordered: List[LogClient | LogAgent | LogEvent | LogFlow | LogInvocation | LogSession] = []
 
         # Keep track of wrapper_ids and client_ids, this can help us reconcile when a client_id doesn't exist we can use a previous client with the same wrapper
         wrapper_clients: Dict[int, List] = {}
@@ -136,12 +137,15 @@ class Visualize:
                 wrapper_clients,
                 agents,
                 events,
+                flows,
                 invocations,
                 all_ordered,
             )
 
             # Visualise the logs
-            final_dot = self.visualize_execution(clients, wrapper_clients, agents, events, invocations, all_ordered)
+            final_dot = self.visualize_execution(
+                clients, wrapper_clients, agents, events, flows, invocations, all_ordered
+            )
 
             # Render the diagram to file
             file_path = final_dot.render(filename=output_path_filename, format="svg", cleanup=cleanup)
@@ -230,6 +234,7 @@ class Visualize:
         wrapper_clients: Dict[int, List],
         agents: Dict[int, LogAgent],
         events: Dict[float, LogEvent],
+        flows: Dict[float, LogFlow],
         invocations: Dict[str, LogInvocation],
         all_ordered: List[LogClient | LogAgent | LogEvent | LogInvocation | LogSession],
     ) -> Digraph:
@@ -240,8 +245,9 @@ class Visualize:
             wrapper_clients (Dict[int, List]):          Log wrapper / clients
             agents (Dict[int, LogAgent]):               log agents
             events (Dict[float, LogEvent]):             Log events
+            flows (Dict[float, LogFlow]):               Log flows
             invocations (Dict[str, LogInvocation]):     Log invocations
-            all_orderedList ([LogClient | LogAgent | LogEvent | LogInvocation | LogSession]):   All log objects in order
+            all_orderedList ([LogClient | LogAgent | LogEvent | LogFlow | LogInvocation | LogSession]):   All log objects in order
 
         Returns:
             A GraphViz digraph
@@ -323,14 +329,16 @@ class Visualize:
                         assign_agent_color(agent_colors, agent.id)
                         agent.visualization_params["color"] = agent_colors[agent.id]
 
-                elif isinstance(item, LogEvent):
-                    event: LogEvent = item
+                elif isinstance(item, LogFlow):
+                    flow: LogFlow = item
 
-                    if event.event_name in [
+                    if flow.code_point in [
                         "_summary_from_nested_chat start",
                         "_auto_select_speaker start",
                         "a_auto_select_speaker start",
                     ]:
+                        nested_chat_id = flow.code_point_id
+                        """
                         nested_chat_id = event.json_state[
                             (
                                 "nested_chat_id"
@@ -338,17 +346,18 @@ class Visualize:
                                 else "auto_select_speaker_id"
                             )
                         ]
+                        """
                         next_level_id = str(uuid4())
                         nested_chat_node_name = f"cluster_{next_level_id}"
 
                         label = (
                             "Nested Chat"
-                            if event.event_name == "_summary_from_nested_chat start"
+                            if flow.code_point == "_summary_from_nested_chat start"
                             else "Group Chat Auto Select Speaker"
                         )
                         color = (
                             self.design_config["nested_bg"]
-                            if event.event_name == "_summary_from_nested_chat start"
+                            if flow.code_point == "_summary_from_nested_chat start"
                             else self.design_config["groupchat_bg"]
                         )
 
@@ -356,15 +365,15 @@ class Visualize:
 
                         nested_chats[nested_chat_id] = {
                             "type": (
-                                "Nested Chat" if event.event_name == "_summary_from_nested_chat start" else "Group Chat"
+                                "Nested Chat" if flow.code_point == "_summary_from_nested_chat start" else "Group Chat"
                             ),
                             "edge_label": (
                                 "Nested Chat"
-                                if event.event_name == "_summary_from_nested_chat start"
+                                if flow.code_point == "_summary_from_nested_chat start"
                                 else "Auto Select Speaker"
                             ),
                             "level_index": next_level_id,
-                            "parent_agent_node_id": agent_id_by_name(agents, event.source_name),
+                            "parent_agent_node_id": agent_id_by_name(agents, flow.source_name),
                             "nested_chat_node_name": nested_chat_node_name,
                             "linked_to_parent_agent_node": False,
                         }
@@ -376,7 +385,7 @@ class Visualize:
                         current_level.subgraph(new_nested)
                         continue
 
-                    elif event.event_name in [
+                    elif flow.code_point in [
                         "_summary_from_nested_chat end",
                         "_auto_select_speaker end",
                         "a_auto_select_speaker end",
@@ -385,7 +394,134 @@ class Visualize:
                         # End the nested chat
                         return i + 1, current_agent
 
-                    elif event.event_name == "received_message":
+                    elif flow.code_point == "_initiate_chat max_turns":
+
+                        # Maximum turns hit, add a termination node
+                        add_node_terminate(self.design_config, current_level, flow)
+
+                        # Link it to the agent
+                        add_agent_to_eventflow_edge(
+                            self.design_config,
+                            current_level,
+                            current_agent,
+                            flow,
+                            f"Max turns hit ({flow.info['turns']})",
+                        )
+
+                        last_termination = flow
+
+                    elif (
+                        flow.code_point == "_reflection_with_llm_as_summary"
+                        or flow.code_point == "_last_msg_as_summary"
+                    ):
+
+                        # Add summary node
+                        add_node_summary(self.design_config, current_level, flow)
+
+                        # Link it to the agent or termination (which ever is later)
+                        summary = summary_text(flow.info["summary"])
+                        if (
+                            last_termination is not None
+                            and last_termination.timestamp > current_agent.current_timestamp
+                        ):
+                            add_eventflow_to_eventflow_edge(
+                                self.design_config, current_level, last_termination, flow, flow.code_point, summary
+                            )
+                        else:
+                            add_agent_to_eventflow_edge(
+                                self.design_config, current_level, current_agent, flow, flow.code_point, summary
+                            )
+
+                        # If we have available invocations, add them to the agent in a return sequence
+                        if len(available_invocations) > 0:
+                            for invocation in available_invocations:
+                                add_invocation_to_eventflow_return_edge(
+                                    self.design_config, current_level, flow, invocation, flow.code_point, summary
+                                )
+
+                            # Once added, we clear the available invocations
+                            available_invocations.clear()
+
+                        # If we're at the final stage of a group chat auto select speaker, show the name of the agent selected
+                        if (
+                            current_level.name is not None
+                            and current_nested_chat_id in nested_chats
+                            and nested_chats[current_nested_chat_id]["type"] == "Group Chat"
+                        ):
+                            node_id = add_node_info(self.design_config, current_level, truncate_string(summary, 30))
+                            add_event_to_node_edge(self.design_config, current_level, flow, node_id, "next speaker")
+
+                        # Track last summarize event so we can connect it to the outside
+                        # of the nested chat
+                        # Not used at this stage but may need to be used to link back to summarise nodes
+                        # last_nested_summarize_level_and_event = [current_level, event]
+
+                    elif (
+                        flow.code_point == "generate_tool_calls_reply"
+                        or flow.code_point == "a_generate_tool_calls_reply"
+                    ):
+                        # Tool calls will be like invocations - it will call the tool and loop back
+
+                        # Add function call node
+                        add_node_eventflow_reply_func_executed(
+                            self.design_config,
+                            dot,
+                            flow,
+                            flow.info["function_name"],
+                            self.design_config["node_shape"]["code_execution"],
+                        )
+
+                        # Create the edge loop
+                        add_eventflow_to_agent_return_edge(
+                            self.design_config,
+                            current_level,
+                            current_agent,
+                            flow,
+                            flow.code_point,
+                            flow.info["return_value"],
+                        )
+
+                    elif flow.code_point.startswith("_prepare_and_select_agents:callable:"):
+                        # Group Chat callable speaker selection
+
+                        callable_name = flow.code_point.split(":")[2]
+
+                        source_agent = agents[agent_id_by_name(agents, flow.source_name)]
+
+                        # Add function call node
+                        add_node_eventflow_reply_func_executed(
+                            self.design_config,
+                            dot,
+                            flow,
+                            callable_name,
+                            self.design_config["node_shape"]["code_execution"],
+                        )
+
+                        # Create the edge loop
+                        add_eventflow_to_agent_return_edge(
+                            self.design_config, current_level, source_agent, flow, flow.info["next_agent"]
+                        )
+
+                    elif flow.code_point == "manual_select_speaker":
+                        # TODO TODO
+                        raise Exception("manual_select_speaker not handled.")
+
+                    elif flow.code_point == "random_select_speaker":
+                        # TODO TODO
+                        raise Exception("random_select_speaker not handled.")
+
+                    elif flow.code_point == "round_robin":
+                        # TODO TODO
+                        raise Exception("round_robin not handled.")
+
+                    elif flow.code_point.startswith("speaker_selection_method:"):
+                        # TODO TODO
+                        raise Exception(f"{flow.code_point} not handled.")
+
+                elif isinstance(item, LogEvent):
+                    event: LogEvent = item
+
+                    if event.event_name == "received_message":
 
                         """
                         # If we want to ignore silent events restore, however we do need to show some for group chat.
@@ -457,7 +593,7 @@ class Visualize:
                                     add_node_terminate(self.design_config, current_level, event)
 
                                     # Link it to the agent
-                                    add_agent_to_event_edge(
+                                    add_agent_to_eventflow_edge(
                                         self.design_config, current_level, current_agent, event, reply_func_name
                                     )
 
@@ -470,7 +606,7 @@ class Visualize:
 
                                     # Link it to the agent
                                     source_agent = agents[agent_id_by_name(agents, event.source_name)]
-                                    add_event_to_agent_return_edge(
+                                    add_eventflow_to_agent_return_edge(
                                         self.design_config,
                                         current_level,
                                         source_agent,
@@ -534,7 +670,7 @@ class Visualize:
                                 # Keep this elif at the bottom
 
                                 add_node_custom_reply_func(self.design_config, current_level, event, reply_func_name)
-                                add_event_to_agent_return_edge(
+                                add_eventflow_to_agent_return_edge(
                                     self.design_config,
                                     current_level,
                                     current_agent,
@@ -560,114 +696,6 @@ class Visualize:
 
                                 # Once added, we clear the available invocations
                                 available_invocations.clear()
-
-                    elif event.event_name and event.event_name.startswith("_prepare_and_select_agents:callable:"):
-                        # Group Chat callable speaker selection
-
-                        callable_name = event.event_name.split(":")[2]
-
-                        source_agent = agents[agent_id_by_name(agents, event.source_name)]
-
-                        # Add function call node
-                        add_node_event_reply_func_executed(
-                            self.design_config,
-                            dot,
-                            event,
-                            callable_name,
-                            self.design_config["node_shape"]["code_execution"],
-                        )
-
-                        # Create the edge loop
-                        add_event_to_agent_return_edge(
-                            self.design_config, current_level, source_agent, event, event.json_state["next_agent"]
-                        )
-
-                    elif (
-                        event.event_name == "generate_tool_calls_reply"
-                        or event.event_name == "a_generate_tool_calls_reply"
-                    ):
-                        # Tool calls will be like invocations - it will call the tool and loop back
-
-                        # Add function call node
-                        add_node_event_reply_func_executed(
-                            self.design_config,
-                            dot,
-                            event,
-                            event.json_state["function_name"],
-                            self.design_config["node_shape"]["code_execution"],
-                        )
-
-                        # Create the edge loop
-                        add_event_to_agent_return_edge(
-                            self.design_config,
-                            current_level,
-                            current_agent,
-                            event,
-                            event.event_name,
-                            event.json_state["return_value"],
-                        )
-
-                    elif (
-                        event.event_name == "_reflection_with_llm_as_summary"
-                        or event.event_name == "_last_msg_as_summary"
-                    ):
-
-                        # Add summary node
-                        add_node_summary(self.design_config, current_level, event)
-
-                        # Link it to the agent or termination (which ever is later)
-                        summary = summary_text(event.json_state["summary"])
-                        if (
-                            last_termination is not None
-                            and last_termination.timestamp > current_agent.current_timestamp
-                        ):
-                            add_event_to_event_edge(
-                                self.design_config, current_level, last_termination, event, event.event_name, summary
-                            )
-                        else:
-                            add_agent_to_event_edge(
-                                self.design_config, current_level, current_agent, event, event.event_name, summary
-                            )
-
-                        # If we have available invocations, add them to the agent in a return sequence
-                        if len(available_invocations) > 0:
-                            for invocation in available_invocations:
-                                add_invocation_to_event_return_edge(
-                                    self.design_config, current_level, event, invocation, event.event_name, summary
-                                )
-
-                            # Once added, we clear the available invocations
-                            available_invocations.clear()
-
-                        # If we're at the final stage of a group chat auto select speaker, show the name of the agent selected
-                        if (
-                            current_level.name is not None
-                            and current_nested_chat_id in nested_chats
-                            and nested_chats[current_nested_chat_id]["type"] == "Group Chat"
-                        ):
-                            node_id = add_node_info(self.design_config, current_level, truncate_string(summary, 30))
-                            add_event_to_node_edge(self.design_config, current_level, event, node_id, "next speaker")
-
-                        # Track last summarize event so we can connect it to the outside
-                        # of the nested chat
-                        # Not used at this stage but may need to be used to link back to summarise nodes
-                        # last_nested_summarize_level_and_event = [current_level, event]
-
-                    elif event.event_name == "_initiate_chat max_turns":
-
-                        # Maximum turns hit, add a termination node
-                        add_node_terminate(self.design_config, current_level, event)
-
-                        # Link it to the agent
-                        add_agent_to_event_edge(
-                            self.design_config,
-                            current_level,
-                            current_agent,
-                            event,
-                            f"Max turns hit ({event.json_state['turns']})",
-                        )
-
-                        last_termination = event
 
                     else:
                         pass

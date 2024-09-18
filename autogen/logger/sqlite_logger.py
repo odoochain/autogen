@@ -169,6 +169,18 @@ class SqliteLogger(BaseLogger):
                         """
             self._run_query(query=query)
 
+            query = """
+                        CREATE TABLE IF NOT EXISTS flows (
+                            source_id INTEGER,
+                            source_name TEXT,
+                            code_point TEXT,
+                            code_point_id TEXT,
+                            info TEXT DEFAULT NULL,
+                            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                        );
+                        """
+            self._run_query(query=query)
+
             current_verion = self._get_current_db_version()
             if current_verion is None:
                 self._run_query(
@@ -488,6 +500,28 @@ class SqliteLogger(BaseLogger):
             get_current_ts(),
         )
         self._run_query(query=query, args=args)
+
+    def log_flow(
+        self, source: Union[str, Agent], code_point: str, code_point_id: str, **kwargs: Dict[str, Any]
+    ) -> None:
+
+        if self.con is None:
+            return
+
+        json_args = json.dumps(kwargs, default=lambda o: f"<<non-serializable: {type(o).__qualname__}>>")
+
+        query = """
+        INSERT INTO flows (source_id, source_name, code_point, code_point_id, info, timestamp) VALUES (?, ?, ?, ?, ?, ?)
+        """
+        query_args: Tuple[Any, ...] = (
+            id(source),
+            source.name if hasattr(source, "name") else source,
+            code_point,
+            code_point_id,
+            json_args,
+            get_current_ts(),
+        )
+        self._run_query(query=query, args=query_args)
 
     def stop(self) -> None:
         if self.con:
