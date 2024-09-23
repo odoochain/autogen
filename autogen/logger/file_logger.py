@@ -138,7 +138,7 @@ class FileLogger(BaseLogger):
                     "session_id": self.session_id,
                     "current_time": get_current_ts(),
                     "agent_type": type(agent).__name__,
-                    "args": try_to_dict(init_args),
+                    "args": try_to_dict(init_args, ignore_callable=True),
                     "thread_id": thread_id,
                 }
             )

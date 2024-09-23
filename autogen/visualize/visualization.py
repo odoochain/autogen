@@ -17,10 +17,11 @@ from .visualise_process_log import load_log_file
 from .visualise_utils import (
     add_agent_to_agent_edge,
     add_agent_to_eventflow_edge,
+    add_agent_to_info_edge,
     add_code_execution_to_agent_return_edge,
-    add_event_to_node_edge,
     add_eventflow_to_agent_return_edge,
     add_eventflow_to_eventflow_edge,
+    add_eventflow_to_node_edge,
     add_invocation_to_agent_return_edge,
     add_invocation_to_eventflow_return_edge,
     add_node_agent,
@@ -39,6 +40,7 @@ from .visualise_utils import (
     darken_color,
     extract_code_exitcode,
     extract_invocation_response,
+    gcm_id_by_groupchat,
     truncate_string,
 )
 
@@ -332,48 +334,52 @@ class Visualize:
                 elif isinstance(item, LogFlow):
                     flow: LogFlow = item
 
-                    if flow.code_point in [
-                        "_summary_from_nested_chat start",
-                        "_auto_select_speaker start",
-                        "a_auto_select_speaker start",
-                    ]:
+                    if flow.code_point == "_summary_from_nested_chat start":
+                        # Start of a nested chat
+
                         nested_chat_id = flow.code_point_id
-                        """
-                        nested_chat_id = event.json_state[
-                            (
-                                "nested_chat_id"
-                                if event.event_name == "_summary_from_nested_chat start"
-                                else "auto_select_speaker_id"
-                            )
-                        ]
-                        """
                         next_level_id = str(uuid4())
                         nested_chat_node_name = f"cluster_{next_level_id}"
 
-                        label = (
-                            "Nested Chat"
-                            if flow.code_point == "_summary_from_nested_chat start"
-                            else "Group Chat Auto Select Speaker"
+                        new_nested = create_nested_digraph(
+                            nested_chat_node_name, "Nested Chat", self.design_config["nested_bg"]
                         )
-                        color = (
-                            self.design_config["nested_bg"]
-                            if flow.code_point == "_summary_from_nested_chat start"
-                            else self.design_config["groupchat_bg"]
-                        )
-
-                        new_nested = create_nested_digraph(nested_chat_node_name, label, color)
 
                         nested_chats[nested_chat_id] = {
-                            "type": (
-                                "Nested Chat" if flow.code_point == "_summary_from_nested_chat start" else "Group Chat"
-                            ),
-                            "edge_label": (
-                                "Nested Chat"
-                                if flow.code_point == "_summary_from_nested_chat start"
-                                else "Auto Select Speaker"
-                            ),
+                            "type": "Nested Chat",
+                            "edge_label": "Nested Chat",
                             "level_index": next_level_id,
                             "parent_agent_node_id": agent_id_by_name(agents, flow.source_name),
+                            "nested_chat_node_name": nested_chat_node_name,
+                            "linked_to_parent_agent_node": False,
+                        }
+                        nested_graphs[next_level_id] = new_nested
+
+                        i, last_nested_agent = process_level(
+                            False, new_nested, next_level_id, items, i + 1, nested_chat_id, current_agent
+                        )
+                        current_level.subgraph(new_nested)
+                        continue
+
+                    elif flow.code_point in [
+                        "_auto_select_speaker start",
+                        "a_auto_select_speaker start",
+                    ]:
+                        # Start of a group chat auto select speaker
+
+                        nested_chat_id = flow.code_point_id
+                        next_level_id = str(uuid4())
+                        nested_chat_node_name = f"cluster_{next_level_id}"
+
+                        new_nested = create_nested_digraph(
+                            nested_chat_node_name, "Group Chat Auto Select Speaker", self.design_config["groupchat_bg"]
+                        )
+
+                        nested_chats[nested_chat_id] = {
+                            "type": "Group Chat",
+                            "edge_label": "Auto Select Speaker",
+                            "level_index": next_level_id,
+                            "parent_agent_node_id": agent_id_by_name(agents, flow.info["selector"]),
                             "nested_chat_node_name": nested_chat_node_name,
                             "linked_to_parent_agent_node": False,
                         }
@@ -449,7 +455,7 @@ class Visualize:
                             and nested_chats[current_nested_chat_id]["type"] == "Group Chat"
                         ):
                             node_id = add_node_info(self.design_config, current_level, truncate_string(summary, 30))
-                            add_event_to_node_edge(self.design_config, current_level, flow, node_id, "next speaker")
+                            add_eventflow_to_node_edge(self.design_config, current_level, flow, node_id, "next speaker")
 
                         # Track last summarize event so we can connect it to the outside
                         # of the nested chat
@@ -486,7 +492,8 @@ class Visualize:
 
                         callable_name = flow.code_point.split(":")[2]
 
-                        source_agent = agents[agent_id_by_name(agents, flow.source_name)]
+                        # Get the group chat manager for this groupchat as the source
+                        source_agent = agents[gcm_id_by_groupchat(agents, flow.info["groupchat_unique_id"])]
 
                         # Add function call node
                         add_node_eventflow_reply_func_executed(
@@ -511,12 +518,24 @@ class Visualize:
                         raise Exception("random_select_speaker not handled.")
 
                     elif flow.code_point == "round_robin":
-                        # TODO TODO
-                        raise Exception("round_robin not handled.")
+
+                        next_agent_name = flow.info["next_agent"]
+
+                        if current_agent.agent_name == next_agent_name:
+                            # Add info that this agent was selected by round robin
+                            node_id = add_node_info(self.design_config, current_level, "Round Robin")
+                            add_agent_to_info_edge(
+                                self.design_config, current_level, current_agent, node_id, "selected"
+                            )
+                        else:
+                            print(
+                                f"** flow.code_point == 'round_robin', current agent expected {next_agent_name}, not {current_agent.agent_name}. **"
+                            )
 
                     elif flow.code_point.startswith("speaker_selection_method:"):
                         # TODO TODO
-                        raise Exception(f"{flow.code_point} not handled.")
+                        print(f"** {flow.code_point} not handled. **")
+                        pass
 
                 elif isinstance(item, LogEvent):
                     event: LogEvent = item

@@ -10,6 +10,7 @@ import logging
 import random
 import re
 import sys
+import uuid
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
@@ -272,6 +273,18 @@ class GroupChat:
         if self.select_speaker_auto_verbose is None or not isinstance(self.select_speaker_auto_verbose, bool):
             raise ValueError("select_speaker_auto_verbose cannot be None or non-bool")
 
+        if logging_enabled():
+            log_flow(
+                "[GroupChat]",
+                "__post_init__",
+                "",
+                agent_names=self.agent_names,
+                groupchat_name=self.admin_name,
+                speaker_selection_method=self.speaker_selection_method,
+            )
+
+        self._unique_id = str(uuid.uuid4())  # unique identifier for tracking if multiple group chats
+
     @property
     def agent_names(self) -> List[str]:
         """Return the names of the agents in the group chat."""
@@ -404,9 +417,10 @@ class GroupChat:
                 if i > 0 and i <= _n_agents:
                     if logging_enabled():
                         log_flow(
-                            source=self.admin_name,
+                            source="[GroupChat]",
                             code_point="manual_select_speaker",
                             code_point_id=None,
+                            groupchat_name=self.admin_name,
                             next_agent=agents[i - 1].name,
                         )
                     return agents[i - 1]
@@ -425,9 +439,10 @@ class GroupChat:
 
         if logging_enabled():
             log_flow(
-                source=self.name,
+                source="[GroupChat]",
                 code_point="random_select_speaker",
                 code_point_id=None,
+                groupchat_name=self.admin_name,
                 next_agent=random_selection.name,
             )
 
@@ -445,10 +460,19 @@ class GroupChat:
 
             if logging_enabled() and selected_agent:
                 log_flow(
-                    source=self.admin_name,
+                    source="[GroupChat]",
                     code_point=f"_prepare_and_select_agents:callable:{self.speaker_selection_method.__name__}",
                     code_point_id=None,
-                    next_agent=selected_agent.name if selected_agent is not None else "[NONE]",
+                    groupchat_unique_id=self._unique_id,
+                    last_speaker=last_speaker.name,
+                    next_agent=(
+                        selected_agent.name
+                        if selected_agent is not None and isinstance(selected_agent, Agent)
+                        else "[NONE]"
+                    ),
+                    returned_speaker_selection_method=(
+                        selected_agent if selected_agent is not None and isinstance(selected_agent, str) else None
+                    ),
                 )
 
             if selected_agent is None:
@@ -560,7 +584,12 @@ class GroupChat:
 
             if logging_enabled():
                 log_flow(
-                    source=self.admin_name, code_point="round_robin", code_point_id=None, next_agent=selected_agent.name
+                    source="[GroupChat]",
+                    code_point="round_robin",
+                    code_point_id=None,
+                    groupchat_name=self.admin_name,
+                    last_speaker=last_speaker.name,
+                    next_agent=selected_agent.name,
                 )
 
         elif speaker_selection_method.lower() == "random":
@@ -576,9 +605,11 @@ class GroupChat:
 
         if logging_enabled() and selected_agent:
             log_flow(
-                source=self.admin_name,
+                source="[GroupChat]",
                 code_point=f"speaker_selection_method:{speaker_selection_method}",
                 code_point_id=None,
+                groupchat_unique_id=self._unique_id,
+                last_speaker=last_speaker.name,
                 next_agent=selected_agent.name,
             )
 
@@ -597,9 +628,11 @@ class GroupChat:
 
             if logging_enabled() and selected_agent:
                 log_flow(
-                    source=self.admin_name,
+                    source="[GroupChat]",
                     code_point="speaker_selection_method:manual-not-selected",
                     code_point_id=None,
+                    groupchat_name=self.admin_name,
+                    last_speaker=last_speaker.name,
                     next_agent=next_agent.name,
                 )
 
@@ -620,9 +653,11 @@ class GroupChat:
 
             if logging_enabled() and selected_agent:
                 log_flow(
-                    source=self.admin_name,
+                    source="[GroupChat]",
                     code_point="speaker_selection_method:manual-not-selected",
                     code_point_id=None,
+                    groupchat_name=self.admin_name,
+                    last_speaker=last_speaker.name,
                     next_agent=next_agent.name,
                 )
 
@@ -677,13 +712,13 @@ class GroupChat:
         """
 
         if logging_enabled():
-            import uuid
-
             auto_select_speaker_id = uuid.uuid4()
             log_flow(
-                source=selector.name,
+                source="[GroupChat]",
                 code_point="_auto_select_speaker start",
                 code_point_id=None,
+                groupchat_name=self.admin_name,
+                selector=selector.name,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 
@@ -764,9 +799,11 @@ class GroupChat:
 
         if logging_enabled():
             log_flow(
-                source=selector.name,
+                source="[GroupChat]",
                 code_point="_auto_select_speaker end",
                 code_point_id=None,
+                groupchat_name=self.admin_name,
+                selector=selector.name,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 
@@ -800,13 +837,13 @@ class GroupChat:
         """
 
         if logging_enabled():
-            import uuid
-
             auto_select_speaker_id = uuid.uuid4()
             log_flow(
-                source=selector.name,
+                source="[GroupChat]",
                 code_point="a_auto_select_speaker start",
                 code_point_id=None,
+                groupchat_name=self.admin_name,
+                selector=selector.name,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 
@@ -881,9 +918,11 @@ class GroupChat:
 
         if logging_enabled():
             log_flow(
-                source=selector.name,
+                source="[GroupChat]",
                 code_point="a_auto_select_speaker end",
                 code_point_id=None,
+                groupchat_name=self.admin_name,
+                selector=selector.name,
                 auto_select_speaker_id=str(auto_select_speaker_id),
             )
 
@@ -1090,13 +1129,14 @@ class GroupChatManager(ConversableAgent):
             system_message=system_message,
             **kwargs,
         )
-        if logging_enabled():
-            log_new_agent(self, locals())
+
         # Store groupchat
         self._groupchat = groupchat
-
         self._last_speaker = None
         self._silent = silent
+
+        if logging_enabled():
+            log_new_agent(self, locals())
 
         # Order of register_reply is important.
         # Allow sync chat if initiated using initiate_chat
@@ -1199,6 +1239,19 @@ class GroupChatManager(ConversableAgent):
         send_introductions = getattr(groupchat, "send_introductions", False)
         silent = getattr(self, "_silent", False)
 
+        if logging_enabled():
+            unique_nested_id = uuid.uuid4()
+            log_flow(
+                source="[GroupChat]",
+                code_point="run_chat start",
+                code_point_id=str(unique_nested_id),
+                groupchatmanager_source_id=id(self),
+                groupchatmanager_name=self.name,
+                sender=sender.name if sender else "None",
+                send_introductions=send_introductions,
+                silent=silent,
+            )
+
         if send_introductions:
             # Broadcast the intro
             intro = groupchat.introductions_msg()
@@ -1220,6 +1273,18 @@ class GroupChatManager(ConversableAgent):
                     self.send(message, agent, request_reply=False, silent=True)
             if self._is_termination_msg(message) or i == groupchat.max_round - 1:
                 # The conversation is over or it's the last round
+
+                if logging_enabled():
+                    log_flow(
+                        source="[GroupChat]",
+                        code_point="run_chat "
+                        + ("is_termination_msg" if self._is_termination_msg(message) else "max_rounds"),
+                        code_point_id=str(unique_nested_id),
+                        groupchatmanager_source_id=id(self),
+                        groupchatmanager_name=self.name,
+                        sender=sender.name if sender else "None",
+                    )
+
                 break
             try:
                 # select the next speaker
@@ -1262,6 +1327,17 @@ class GroupChatManager(ConversableAgent):
             for a in groupchat.agents:
                 a.client_cache = a.previous_cache
                 a.previous_cache = None
+
+        if logging_enabled():
+            log_flow(
+                source="[GroupChat]",
+                code_point="run_chat end",
+                code_point_id=str(unique_nested_id),
+                groupchatmanager_source_id=id(self),
+                groupchatmanager_name=self.name,
+                sender=sender.name if sender else "None",
+            )
+
         return True, None
 
     async def a_run_chat(
@@ -1278,6 +1354,19 @@ class GroupChatManager(ConversableAgent):
         groupchat = config
         send_introductions = getattr(groupchat, "send_introductions", False)
         silent = getattr(self, "_silent", False)
+
+        if logging_enabled():
+            unique_nested_id = uuid.uuid4()
+            log_flow(
+                source="[GroupChat]",
+                code_point="a_run_chat start",
+                code_point_id=str(unique_nested_id),
+                groupchatmanager_source_id=id(self),
+                groupchatmanager_name=self.name,
+                sender=sender.name if sender else "None",
+                send_introductions=send_introductions,
+                silent=silent,
+            )
 
         if send_introductions:
             # Broadcast the intro
@@ -1328,6 +1417,17 @@ class GroupChatManager(ConversableAgent):
             for a in groupchat.agents:
                 a.client_cache = a.previous_cache
                 a.previous_cache = None
+
+        if logging_enabled():
+            log_flow(
+                source="[GroupChat]",
+                code_point="run_chat end",
+                code_point_id=str(unique_nested_id),
+                groupchatmanager_source_id=id(self),
+                groupchatmanager_name=self.name,
+                sender=sender.name if sender else "None",
+            )
+
         return True, None
 
     def resume(

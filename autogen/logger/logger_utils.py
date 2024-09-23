@@ -17,10 +17,12 @@ def get_current_ts() -> str:
     return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
 
 
-def try_to_dict(obj: Union[int, float, str, bool, Dict[Any, Any], List[Any], Tuple[Any, ...], Any]) -> Any:
+def try_to_dict(
+    obj: Union[int, float, str, bool, Dict[Any, Any], List[Any], Tuple[Any, ...], Any], ignore_callable: bool = False
+) -> Any:
     """Attempts to convert to dictionary, ensuring that all values are JSON serializable"""
     try:
-        result = to_dict(obj)  # Attempt conversion using to_dict
+        result = to_dict(obj, ignore_callable=ignore_callable)  # Attempt conversion using to_dict
 
         # Validate if the result is JSON serializable by attempting to dump it
         json.dumps(result)  # This will throw a TypeError or OSError if not serializable
@@ -31,36 +33,64 @@ def try_to_dict(obj: Union[int, float, str, bool, Dict[Any, Any], List[Any], Tup
         if isinstance(obj, Path):
             return None  # Skip the PosixPath (or convert it with str(obj))
         elif isinstance(obj, (list, tuple)):
-            return [try_to_dict(item) for item in obj]  # Recursively handle lists/tuples
+            return [
+                try_to_dict(item, ignore_callable=ignore_callable) for item in obj
+            ]  # Recursively handle lists/tuples
         elif isinstance(obj, dict):
-            return {key: try_to_dict(value) for key, value in obj.items()}  # Recursively handle dicts
+            return {
+                key: try_to_dict(value, ignore_callable=ignore_callable) for key, value in obj.items()
+            }  # Recursively handle dicts
         else:
             # Fallback to string representation for unrecognized or dynamic objects
-            return repr(obj)
+            return None  # repr(obj)
 
 
 def to_dict(
     obj: Union[int, float, str, bool, Dict[Any, Any], List[Any], Tuple[Any, ...], Any],
     exclude: Tuple[str, ...] = (),
     no_recursive: Tuple[Any, ...] = (),
+    ignore_callable: bool = False,
+    _depth: int = 0,
+    _max_depth: int = 3,  # Maximum depth to extract for log
 ) -> Any:
-    if isinstance(obj, (int, float, str, bool)):
-        return obj
-    elif callable(obj):
-        return inspect.getsource(obj).strip()
-    elif isinstance(obj, dict):
-        return {
-            str(k): to_dict(str(v)) if isinstance(v, no_recursive) else to_dict(v, exclude, no_recursive)
-            for k, v in obj.items()
-            if k not in exclude
-        }
-    elif isinstance(obj, (list, tuple)):
-        return [to_dict(str(v)) if isinstance(v, no_recursive) else to_dict(v, exclude, no_recursive) for v in obj]
-    elif hasattr(obj, "__dict__"):
-        return {
-            str(k): to_dict(str(v)) if isinstance(v, no_recursive) else to_dict(v, exclude, no_recursive)
-            for k, v in vars(obj).items()
-            if k not in exclude
-        }
-    else:
-        return obj
+    if _depth > _max_depth:
+        return None  # Maximum depth reached, stop here
+
+    try:
+        if isinstance(obj, (int, float, str, bool)):
+            return obj
+        elif callable(obj):
+            return None if ignore_callable else inspect.getsource(obj).strip()
+        elif isinstance(obj, dict):
+            return {
+                str(k): (
+                    to_dict(str(v), ignore_callable=ignore_callable, _depth=_depth + 1)
+                    if isinstance(v, no_recursive)
+                    else to_dict(v, exclude, no_recursive, ignore_callable, _depth=_depth + 1)
+                )
+                for k, v in obj.items()
+                if k not in exclude
+            }
+        elif isinstance(obj, (list, tuple)):
+            return [
+                (
+                    to_dict(str(v), ignore_callable=ignore_callable, _depth=_depth + 1)
+                    if isinstance(v, no_recursive)
+                    else to_dict(v, exclude, no_recursive, ignore_callable, _depth=_depth + 1)
+                )
+                for v in obj
+            ]
+        elif hasattr(obj, "__dict__"):
+            return {
+                str(k): (
+                    to_dict(str(v), ignore_callable=ignore_callable, _depth=_depth + 1)
+                    if isinstance(v, no_recursive)
+                    else to_dict(v, exclude, no_recursive, ignore_callable=ignore_callable, _depth=_depth + 1)
+                )
+                for k, v in vars(obj).items()
+                if k not in exclude
+            }
+        else:
+            return obj
+    except RecursionError:
+        return f"RECURSION ERROR: {type(obj).__name__}"

@@ -22,6 +22,7 @@ __all__ = [
     "darken_color",
     "extract_code_exitcode",
     "agent_id_by_name",
+    "gcm_id_by_groupchat",
     "client_by_id",
     "has_agent_nodes",
     "get_agent_node_id",
@@ -37,8 +38,9 @@ __all__ = [
     "add_node_info",
     "add_agent_to_agent_edge",
     "add_agent_to_eventflow_edge",
+    "add_agent_to_info_edge",
     "add_eventflow_to_eventflow_edge",
-    "add_event_to_node_edge",
+    "add_eventflow_to_node_edge",
     "add_event_to_agent_edge",
     "add_invocation_to_agent_return_edge",
     "add_invocation_to_eventflow_return_edge",
@@ -120,6 +122,20 @@ def agent_id_by_name(agents: Dict[int, LogAgent], agent_name: str) -> int:
             return agent.id
 
     raise Exception(f"Unknown agent, name: {agent_name}")
+
+
+def gcm_id_by_groupchat(agents: Dict[int, LogAgent], groupchat_unique_id: str) -> int:
+    """Retrieves the groupchat manager for a groupchat"""
+    for agent in agents.values():
+        if (
+            agent.agent_type == "GroupChatManager"
+            and "groupchat" in agent.args
+            and "_unique_id" in agent.args["groupchat"]
+            and agent.args["groupchat"]["_unique_id"] == groupchat_unique_id
+        ):
+            return agent.id
+
+    raise Exception(f"Couldn't find GroupChat Manager for GroupChat with unique_id: {groupchat_unique_id}")
 
 
 def client_by_id(
@@ -328,14 +344,14 @@ def add_node_invocation(
     )
 
 
-def add_node_info(design_config: Dict, dot: Digraph, event_name: str) -> str:
+def add_node_info(design_config: Dict, dot: Digraph, label: str) -> str:
     """Add an info node to the diagram an returns the name of the node"""
 
     new_id = str(uuid4())
 
     dot.node(
         new_id,
-        event_name,
+        label,
         shape=design_config["node_shape"]["info"],
         color=design_config["border_color"],
         style="filled",
@@ -408,6 +424,30 @@ def add_agent_to_eventflow_edge(
     )
 
 
+def add_agent_to_info_edge(
+    design_config: Dict,
+    dot: Digraph,
+    agent: LogAgent,
+    node_id: str,
+    edge_text: str,
+    tooltip_text: str = "",
+    href_text: str = "",
+):
+    """Adds an edge between an agent and an event"""
+
+    dot.edge(
+        get_agent_node_id(agent),
+        node_id,
+        label=edge_text,
+        labeltooltip=tooltip_text,
+        labelhref=href_text,
+        labeldistance=design_config["label_distance"],
+        fontcolor=design_config["font_color"],
+        color=design_config["edge_color"],
+        fontname=design_config["font_names"],
+    )
+
+
 def add_eventflow_to_eventflow_edge(
     design_config: Dict,
     dot: Digraph,
@@ -432,10 +472,10 @@ def add_eventflow_to_eventflow_edge(
     )
 
 
-def add_event_to_node_edge(
+def add_eventflow_to_node_edge(
     design_config: Dict,
     dot: Digraph,
-    event: LogEvent,
+    eventflow: Union[LogEvent | LogFlow],
     node_id: str,
     edge_text: str,
     tooltip_text: str = "",
@@ -444,7 +484,7 @@ def add_event_to_node_edge(
     """Adds an edge between an event and a node"""
 
     dot.edge(
-        event.event_id,
+        _get_eventflow_id(eventflow),
         node_id,
         label=edge_text,
         labeltooltip=tooltip_text,

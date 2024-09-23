@@ -9,12 +9,18 @@ from datetime import datetime
 from typing import Any, Dict
 
 
-class LogSession:
+class LogBase:
+    def __init__(self):
+        pass
+
+
+class LogSession(LogBase):
     def __init__(self, session_id: str):
+        super().__init__()
         self.session_id = session_id
 
 
-class LogClient:
+class LogClient(LogBase):
     def __init__(
         self,
         client_id: int,
@@ -26,6 +32,7 @@ class LogClient:
         thread_id: int,
         is_custom_class: bool,
     ):
+        super().__init__()
         self.client_id = client_id
         self.wrapper_id = wrapper_id
         self.session_id = session_id
@@ -42,7 +49,7 @@ class LogClient:
         return f"Client ({self.client_id}) - {self.class_name}"
 
 
-class LogAgent:
+class LogAgent(LogBase):
     def __init__(
         self,
         id: int,
@@ -54,6 +61,7 @@ class LogAgent:
         args: Dict,
         thread_id: int,
     ):
+        super().__init__()
         self.id = id
         self.agent_name = agent_name
         self.wrapper_id = wrapper_id
@@ -64,13 +72,19 @@ class LogAgent:
         self.args = args
         self.thread_id = thread_id
 
+        # Group chat object for a group chat manager
+        if self.agent_type == "GroupChatManager" and "self" in args and "_groupchat_sourceid" in args["self"]:
+            self.groupchat_source_id = self.args["self"]["_groupchat_sourceid"]
+        else:
+            self.groupchat_source_id = None
+
         self.visualization_params = {}  # For tracking colours and what index we're up to
 
     def __str__(self):
         return f"Agent ({self.id}) - {self.agent_name}"
 
 
-class LogEvent:
+class LogEvent(LogBase):
     def __init__(
         self,
         source_id: int,
@@ -82,6 +96,7 @@ class LogEvent:
         timestamp: str,
         thread_id: int,
     ):
+        super().__init__()
         self.event_id = _get_id_str(timestamp)
         self.source_id = source_id
         self.source_name = source_name
@@ -112,7 +127,7 @@ class LogEvent:
         )
 
 
-class LogFlow:
+class LogFlow(LogBase):
     def __init__(
         self,
         source_id: int,
@@ -123,6 +138,7 @@ class LogFlow:
         timestamp: str,
         thread_id: int,
     ):
+        super().__init__()
         self.flow_id = _get_id_str(timestamp)
         self.source_id = source_id
         self.source_name = source_name
@@ -151,7 +167,7 @@ class LogFlow:
         return f"Flow ({self.timestamp}) - {self.source_name}, {self.code_point}, {self.code_point_id}"
 
 
-class LogInvocation:
+class LogInvocation(LogBase):
     def __init__(
         self,
         invocation_id: str,
@@ -166,6 +182,7 @@ class LogInvocation:
         thread_id: int,
         source_name: str,
     ):
+        super().__init__()
         self.invocation_id = invocation_id
         self.client_id = client_id
         self.wrapper_id = wrapper_id

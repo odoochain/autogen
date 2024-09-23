@@ -134,10 +134,10 @@ def add_log_event(event: LogEvent, log_events: Dict[float, LogEvent]) -> bool:
 def add_log_flow(flow: LogFlow, log_flows: Dict[float, LogFlow]) -> bool:
     if flow.timestamp not in log_flows:
         log_flows[flow.timestamp] = flow
-        print(f"Flow at {flow.timestamp} added - {flow.code_point}, {flow.code_point_id}.")
+        # print(f"Flow at {flow.timestamp} added - {flow.code_point}, {flow.code_point_id}.")
         return True
     else:
-        print(f"Flow at {flow.timestamp} already exists. No duplicate added.")
+        # print(f"Flow at {flow.timestamp} already exists. No duplicate added.")
         return False
 
 
